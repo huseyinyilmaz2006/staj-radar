@@ -1,4 +1,4 @@
-"""Staj Radar toplayıcı: Trendyol (Lever API), Aselsan ve Mercedes-Benz Türk (sayfa taraması).
+"""Staj Radar toplayıcı: Lever/Greenhouse şirketleri, Savunma Kariyer, Aselsan ve Mercedes (sayfa taraması).
 
 Kurulum:
     pip install requests playwright
@@ -33,22 +33,56 @@ def robots_izin(url):
         return True  # robots.txt okunamadıysa devam et
 
 
-def trendyol():
+TEKNIK = re.compile(r"software|engineer|developer|\bdata\b|backend|back-end|frontend|front-end|full.?stack|devops|machine learning|\bml\b|\bai\b|mobile|android|\bios\b|\bqa\b|\btest|security|cloud|\bsre\b|game dev|unity|yazılım|mühendis|bilgisayar", re.I)
+TR_YER = re.compile(r"istanbul|türk|turk|ankara|izmir|kocaeli|remote|uzaktan", re.I)
+
+# Takip edilen şirketler: (ilan sistemindeki kod, görünen ad)
+LEVER = [("trendyol", "Trendyol"), ("insiderone", "Insider One"),
+         ("codeway", "Codeway"), ("dreamgames", "Dream Games")]
+GREENHOUSE = [("udemybedi", "Udemy")]
+
+
+def alan(*metin):
+    return "Yazılım" if TEKNIK.search(" ".join(metin)) else "Diğer"
+
+
+def lever(slug, sirket):
     """Lever herkese açık JSON ucu."""
-    veri = requests.get("https://api.lever.co/v0/postings/trendyol?mode=json",
+    veri = requests.get(f"https://api.lever.co/v0/postings/{slug}?mode=json",
                         headers={"User-Agent": UA}, timeout=30).json()
+    mod = {"remote": "Uzaktan", "hybrid": "Hibrit", "on-site": "Ofis"}
     sonuc = []
     for j in veri:
         cat = j.get("categories", {})
-        metin = " ".join([j.get("text", ""), cat.get("team", ""), cat.get("commitment", "")])
-        if not STAJ.search(metin):
+        takim, yer = cat.get("team") or "", cat.get("location") or ""
+        if not STAJ.search(" ".join([j.get("text", ""), takim, cat.get("commitment") or ""])):
+            continue
+        if yer and not TR_YER.search(yer):
+            continue
+        ilk = ""
+        if j.get("createdAt"):
+            ilk = dt.datetime.fromtimestamp(j["createdAt"] / 1000).date().isoformat()
+        sonuc.append({
+            "t": j["text"], "c": sirket, "city": yer.split("/")[0].strip() or "-",
+            "f": alan(j["text"], takim), "m": mod.get(j.get("workplaceType", ""), "Ofis"),
+            "s": "Lever API", "u": j["hostedUrl"], "ilk_gorulme": ilk,
+        })
+    return sonuc
+
+
+def greenhouse(token, sirket):
+    """Greenhouse herkese açık JSON ucu."""
+    veri = requests.get(f"https://boards-api.greenhouse.io/v1/boards/{token}/jobs",
+                        headers={"User-Agent": UA}, timeout=30).json()
+    sonuc = []
+    for j in veri.get("jobs", []):
+        baslik, yer = j.get("title", ""), (j.get("location") or {}).get("name", "")
+        if not STAJ.search(baslik) or (yer and not TR_YER.search(yer)):
             continue
         sonuc.append({
-            "t": j["text"], "c": "Trendyol",
-            "city": (cat.get("location") or "İstanbul").split("/")[0].strip(),
-            "f": (cat.get("team") or "Diğer").split("–")[0].strip(),
-            "m": (j.get("workplaceType") or "hibrit").replace("hybrid", "Hibrit").replace("remote", "Uzaktan").replace("on-site", "Ofis").capitalize(),
-            "s": "Lever API", "u": j["hostedUrl"],
+            "t": baslik, "c": sirket, "city": yer.split(",")[0].strip() or "-",
+            "f": alan(baslik), "m": "Ofis", "s": "Greenhouse API", "u": j["absolute_url"],
+            "ilk_gorulme": (j.get("first_published") or j.get("updated_at") or "")[:10],
         })
     return sonuc
 
@@ -152,7 +186,7 @@ def main():
     eski = {x["u"]: x for x in json.loads(OUT.read_text("utf-8"))} if OUT.exists() else {}
     bugun = dt.date.today()
     toplanan = []
-    for ad, fn in [("Trendyol", trendyol), ("Savunma Kariyer", savunma_kariyer)] + [(s["c"], lambda s=s: sayfa_tara(s)) for s in SAYFALAR]:
+    for ad, fn in ([(ad, lambda k=k, ad=ad: lever(k, ad)) for k, ad in LEVER] + [(ad, lambda k=k, ad=ad: greenhouse(k, ad)) for k, ad in GREENHOUSE] + [("Savunma Kariyer", savunma_kariyer)]) + [(s["c"], lambda s=s: sayfa_tara(s)) for s in SAYFALAR]:
         try:
             gelen = fn()
             print(f"{ad}: {len(gelen)} ilan")
