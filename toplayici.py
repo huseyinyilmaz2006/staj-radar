@@ -50,6 +50,7 @@ def lever(slug, sirket):
     """Lever herkese açık JSON ucu."""
     veri = requests.get(f"https://api.lever.co/v0/postings/{slug}?mode=json",
                         headers={"User-Agent": UA}, timeout=30).json()
+    print(f"  [{sirket}] sitede toplam {len(veri)} ilan, örnek başlıklar: {[j.get('text') for j in veri[:3]]}")
     mod = {"remote": "Uzaktan", "hybrid": "Hibrit", "on-site": "Ofis"}
     sonuc = []
     for j in veri:
@@ -75,6 +76,7 @@ def greenhouse(token, sirket):
     veri = requests.get(f"https://boards-api.greenhouse.io/v1/boards/{token}/jobs",
                         headers={"User-Agent": UA}, timeout=30).json()
     sonuc = []
+    print(f"  [{sirket}] sitede toplam {len(veri.get('jobs', []))} ilan")
     for j in veri.get("jobs", []):
         baslik, yer = j.get("title", ""), (j.get("location") or {}).get("name", "")
         if not STAJ.search(baslik) or (yer and not TR_YER.search(yer)):
