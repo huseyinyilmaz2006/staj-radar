@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Staj Radar</title>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@500;700&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#EEF1F5;--surface:#fff;--ink:#121A2B;--mute:#5B6578;--line:#D8DDE6;--accent:#2450E6;--accent-ink:#fff;--new:#E8F0FF;--ok:#12805C;--okbg:#DDF4EA;--warn:#8A5A00;--warnbg:#FFF0CC;--bad:#A12B3A;--badbg:#FBE3E6;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0E1320;--surface:#171E2E;--ink:#EBEFF7;--mute:#9AA5BA;--line:#2A3348;--accent:#7C9BFF;--accent-ink:#0E1320;--new:#1E2B4D;--ok:#6FDDB1;--okbg:#14352A;--warn:#F2C766;--warnbg:#3A2E10;--bad:#FF8E9C;--badbg:#3D1A21}}
+:root[data-theme="dark"]{--bg:#0E1320;--surface:#171E2E;--ink:#EBEFF7;--mute:#9AA5BA;--line:#2A3348;--accent:#7C9BFF;--accent-ink:#0E1320;--new:#1E2B4D;--ok:#6FDDB1;--okbg:#14352A;--warn:#F2C766;--warnbg:#3A2E10;--bad:#FF8E9C;--badbg:#3D1A21}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:400 16px/1.5 "Instrument Sans",system-ui,sans-serif}
+main{max-width:720px;margin:0 auto;padding:20px 16px 48px}
+h1{font:700 34px/1.05 "Bricolage Grotesque",system-ui,sans-serif;margin:8px 0 6px;letter-spacing:-.02em}
+.sub{color:var(--mute);margin:0 0 18px}
+.stats{display:flex;gap:8px;margin-bottom:16px}
+.stat{flex:1;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+.stat b{display:block;font:700 24px/1 "Bricolage Grotesque",system-ui,sans-serif}
+.stat span{color:var(--mute);font-size:13px}
+input[type=search]{width:100%;padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:var(--surface);color:var(--ink);font:inherit;margin-bottom:10px}
+input:focus,button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.chips{display:flex;gap:6px;overflow-x:auto;padding-bottom:8px;margin-bottom:6px}
+.chip{flex:none;border:1px solid var(--line);background:var(--surface);color:var(--ink);padding:7px 12px;border-radius:99px;font:500 14px inherit;font-family:inherit;cursor:pointer}
+.chip[aria-pressed=true]{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.note{font-size:13px;color:var(--mute);margin:4px 0 14px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin-bottom:10px}
+.card.fresh{border-left:4px solid var(--accent)}
+.top{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+.card h2{font:600 17px/1.25 "Instrument Sans",system-ui,sans-serif;margin:0}
+.co{color:var(--mute);margin:2px 0 8px}
+.tags{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+.tag{font-size:13px;background:var(--bg);border-radius:6px;padding:2px 8px}
+.tag.n{background:var(--new);color:var(--accent);font-weight:600}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.st{font:500 14px inherit;font-family:inherit;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:8px;padding:7px 10px}
+.st.s-Kaydedildi{background:var(--warnbg);color:var(--warn);border-color:transparent}
+.st.s-Başvuruldu{background:var(--okbg);color:var(--ok);border-color:transparent}
+.st.s-Elendi{background:var(--badbg);color:var(--bad);border-color:transparent}
+a.go{margin-left:auto;background:var(--accent);color:var(--accent-ink);text-decoration:none;font-weight:600;font-size:14px;padding:8px 14px;border-radius:8px}
+.src{font-size:12px;color:var(--mute);white-space:nowrap}
+.empty{text-align:center;color:var(--mute);padding:36px 12px}
+</style>
+</head>
+<body>
+<main>
+<h1>Staj Radar</h1>
+<p class="sub">Toplanan staj ilanların tek listede.</p>
+<div class="stats">
+<div class="stat"><b id="c-all">0</b><span>ilan</span></div>
+<div class="stat"><b id="c-new">0</b><span>yeni</span></div>
+<div class="stat"><b id="c-app">0</b><span>başvuruldu</span></div>
+</div>
+<input type="search" id="q" placeholder="Şirket veya pozisyon ara" aria-label="Ara">
+<div class="chips" id="chips"></div>
+<p class="note" id="note"></p>
+<div class="row" style="margin-bottom:14px"><label class="chip" style="cursor:pointer">ilanlar.json yükle<input type="file" id="fi" accept=".json,application/json" hidden></label></div>
+<div id="list"></div>
+</main>
+<script>
+var D=[
+{t:"Yazılım Geliştirme Stajyeri",c:"Trendyol",city:"İstanbul",f:"Yazılım",m:"Hibrit",d:0,s:"Kariyer sayfası"},
+{t:"Veri Analizi Stajyeri",c:"Garanti BBVA",city:"İstanbul",f:"Veri",m:"Ofis",d:1,s:"RSS"},
+{t:"Pazarlama Stajyeri",c:"Unilever",city:"İstanbul",f:"Pazarlama",m:"Ofis",d:1,s:"Kariyer sayfası"},
+{t:"Mobil Uygulama Stajyeri",c:"Getir",city:"İstanbul",f:"Yazılım",m:"Hibrit",d:2,s:"API"},
+{t:"Makine Öğrenmesi Stajyeri",c:"Baykar",city:"Ankara",f:"Veri",m:"Ofis",d:3,s:"Kariyer sayfası"},
+{t:"Finans Stajyeri",c:"Koç Holding",city:"İstanbul",f:"Finans",m:"Hibrit",d:4,s:"RSS"},
+{t:"UI/UX Tasarım Stajyeri",c:"Hepsiburada",city:"İstanbul",f:"Tasarım",m:"Uzaktan",d:5,s:"API"},
+{t:"Backend Stajyeri",c:"Insider",city:"İstanbul",f:"Yazılım",m:"Uzaktan",d:6,s:"Kariyer sayfası"},
+{t:"Yazılım Test Stajyeri",c:"Aselsan",city:"Ankara",f:"Yazılım",m:"Ofis",d:7,s:"RSS"},
+{t:"İnsan Kaynakları Stajyeri",c:"Arçelik",city:"İstanbul",f:"İK",m:"Ofis",d:9,s:"Kariyer sayfası"},
+{t:"Grafik Tasarım Stajyeri",c:"Peak Games",city:"İstanbul",f:"Tasarım",m:"Hibrit",d:10,s:"API"},
+{t:"Ar-Ge Stajyeri",c:"Vestel",city:"İzmir",f:"Mühendislik",m:"Ofis",d:12,s:"RSS"}
+];
+function prep(l){l.forEach(function(x,i){x.u=x.u||"#";x.id=x.u!=="#"?x.u:"ornek"+i;x.d=x.d||0});return l}
+var sample=true;
+try{var sv=JSON.parse(localStorage.getItem("staj_data")||"null");if(sv&&sv.length){D=sv;sample=false}}catch(e){}
+prep(D);
+var ST=["Yeni","Kaydedildi","Başvuruldu","Elendi"],state={},sel={f:"Tümü"},store={};
+try{store=JSON.parse(localStorage.getItem("staj")||"{}")}catch(e){store={}}
+function save(){try{localStorage.setItem("staj",JSON.stringify(store))}catch(e){}}
+function stat(id){return store[id]||"Yeni"}
+var chips=document.getElementById("chips");
+function buildChips(){chips.innerHTML="";sel.f="Tümü";
+var fields=["Tümü"].concat(Array.from(new Set(D.map(function(x){return x.f}))),["Uzaktan"]);
+fields.forEach(function(f){var b=document.createElement("button");b.className="chip";b.textContent=f;
+b.setAttribute("aria-pressed",f==="Tümü");b.onclick=function(){sel.f=f;
+chips.querySelectorAll(".chip").forEach(function(c){c.setAttribute("aria-pressed",c===b)});render()};chips.appendChild(b)})}
+buildChips();
+document.getElementById("q").oninput=render;
+function ago(d){return d===0?"bugün":d===1?"dün":d+" gün önce"}
+function render(){
+var q=document.getElementById("q").value.toLocaleLowerCase("tr").trim();
+var rows=D.filter(function(x){
+var okF=sel.f==="Tümü"||(sel.f==="Uzaktan"?x.m==="Uzaktan":x.f===sel.f);
+var okQ=!q||(x.t+" "+x.c+" "+x.city).toLocaleLowerCase("tr").indexOf(q)>-1;
+return okF&&okQ}).sort(function(a,b){return a.d-b.d});
+document.getElementById("c-all").textContent=D.length;
+document.getElementById("note").textContent=sample?"Şimdilik örnek veri gösteriliyor. Toplayıcının ürettiği ilanlar.json dosyasını yükle.":"Yüklenen ilanlar gösteriliyor. Güncellemek için yeni ilanlar.json dosyasını yükle.";
+document.getElementById("c-new").textContent=D.filter(function(x){return x.d<=2&&stat(x.id)==="Yeni"}).length;
+document.getElementById("c-app").textContent=D.filter(function(x){return stat(x.id)==="Başvuruldu"}).length;
+var el=document.getElementById("list");el.innerHTML="";
+if(!rows.length){el.innerHTML='<div class="empty">Eşleşen ilan yok. Aramayı veya filtreyi değiştir.</div>';return}
+rows.forEach(function(x){
+var s=stat(x.id),fresh=x.d<=2&&s==="Yeni";
+var c=document.createElement("div");c.className="card"+(fresh?" fresh":"");
+c.innerHTML='<div class="top"><div><h2></h2><div class="co"></div></div><span class="src"></span></div><div class="tags"></div><div class="row"></div>';
+c.querySelector("h2").textContent=x.t;
+c.querySelector(".co").textContent=x.c+", "+x.city;
+c.querySelector(".src").textContent=ago(x.d);
+var tg=c.querySelector(".tags");
+(fresh?["Yeni"]:[]).concat([x.f,x.m,x.s]).forEach(function(t,i){var sp=document.createElement("span");sp.className="tag"+(fresh&&i===0?" n":"");sp.textContent=t;tg.appendChild(sp)});
+var r=c.querySelector(".row");
+var b=document.createElement("button");b.className="st s-"+s;b.textContent=s;
+b.setAttribute("aria-label","Durumu değiştir, şu an: "+s);
+b.onclick=function(){store[x.id]=ST[(ST.indexOf(s)+1)%ST.length];save();render()};
+var a=document.createElement("a");a.className="go";a.href=x.u;a.textContent="İlana git";
+r.appendChild(b);r.appendChild(a);el.appendChild(c)});
+}
+document.getElementById("fi").onchange=function(e){var f=e.target.files[0];if(!f)return;var r=new FileReader();
+r.onload=function(){try{var j=JSON.parse(r.result);if(!Array.isArray(j))throw 0;
+try{localStorage.setItem("staj_data",JSON.stringify(j))}catch(x){}
+D=prep(j);sample=false;buildChips();render()}catch(x){document.getElementById("note").textContent="Dosya okunamadı. toplayici.py çıktısı olan ilanlar.json dosyasını seç."}};
+r.readAsText(f)};
+fetch("ilanlar.json?t="+Date.now()).then(function(r){return r.json()}).then(function(j){
+if(Array.isArray(j)){D=prep(j);sample=false;buildChips();render();
+document.getElementById("note").textContent=j.length?"İlanlar her gün otomatik güncelleniyor.":"Şu an açık staj ilanı yok. Liste her gün otomatik kontrol ediliyor."}}).catch(function(){});
+render();
+</script>
+</body>
+</html>
