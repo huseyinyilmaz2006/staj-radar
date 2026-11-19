@@ -1,0 +1,26 @@
+name: Staj ilanlarini topla
+on:
+  schedule:
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  topla:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install requests playwright && playwright install --with-deps chromium
+      - run: python toplayici.py
+      - name: Sonucu kaydet
+        run: |
+          git config user.name "staj-bot"
+          git config user.email "bot@users.noreply.github.com"
+          git add ilanlar.json
+          if ! git diff --staged --quiet; then
+            git commit -m "ilanlar guncellendi"
+            git push
+          fi
