@@ -19,7 +19,6 @@ STAJ = re.compile(r"staj|\bintern(ship)?s?\b|\bPEP\b|talent program|yetenek prog
 # Sayfa taraması yapılacak şirketler. Aselsan adresini kendi kariyer sayfasına göre doğrula.
 SAYFALAR = [
     {"c": "Mercedes-Benz Türk", "url": "https://careers.mercedesbenzturk.com.tr/content/Staj-Programlari/?locale=tr_TR", "city": "İstanbul / Aksaray"},
-    {"c": "Aselsan", "url": "https://www.aselsan.com/tr/kariyer?menu=a-yetenek-yaz-staji", "city": "Ankara", "tek_ilan": True},
 ]
 
 
@@ -33,7 +32,7 @@ def robots_izin(url):
         return True  # robots.txt okunamadıysa devam et
 
 
-TEKNIK = re.compile(r"software|engineer|developer|\bdata\b|backend|back-end|frontend|front-end|full.?stack|devops|machine learning|\bml\b|\bai\b|mobile|android|\bios\b|\bqa\b|\btest|security|cloud|\bsre\b|game dev|unity|yazılım|mühendis|bilgisayar", re.I)
+TEKNIK = re.compile(r"software|engineer|developer|\bdata\b|backend|back-end|frontend|front-end|full.?stack|devops|machine learning|\bml\b|\bai\b|mobile|android|\bios\b|\bqa\b|\btest|security|cloud|\bsre\b|game dev|unity|yazılım|mühendis|bilgisayar|information technology|bilgi teknolojileri|(?-i:\bIT\b)", re.I)
 TR_YER = re.compile(r"istanbul|türk|turk|ankara|izmir|kocaeli|remote|uzaktan", re.I)
 
 # Takip edilen şirketler: (ilan sistemindeki kod, görünen ad)
@@ -149,6 +148,58 @@ def savunma_kariyer():
     return sonuc
 
 
+YT_LINK = re.compile(r"youthall\.com/(tr|en)/[^/]+/[^/]+_\d+/?$")
+YT_MOD = {"hibrit": "Hibrit", "uzaktan": "Uzaktan", "ofis": "Ofis", "online": "Uzaktan"}
+
+
+def youthall():
+    """Youthall staj listesi (sunucu tarafında çizilen HTML, tarayıcıyla okunur)."""
+    from playwright.sync_api import sync_playwright
+    taban = "https://www.youthall.com/tr/is-ilanlari/stajyer/"
+    if not robots_izin(taban):
+        print("robots.txt izin vermiyor, atlandı: Youthall")
+        return []
+    js = """els => els.map(a => ({href: a.href, text: a.innerText || '',
+        alt: (a.querySelector('img') || {}).alt || '',
+        head: ((a.querySelector('h1,h2,h3,h4,h5,[class*=title]') || {}).innerText || '')}))"""
+    sonuc, gorulen = [], set()
+    with sync_playwright() as p:
+        b = p.chromium.launch()
+        pg = b.new_page(user_agent=UA)
+        for sayfa in range(1, 6):
+            pg.goto(taban if sayfa == 1 else f"{taban}?page={sayfa}", wait_until="networkidle", timeout=60000)
+            yeni = 0
+            for a in pg.eval_on_selector_all("a[href]", js):
+                href = a["href"].split("#")[0]
+                if not YT_LINK.search(href) or href in gorulen:
+                    continue
+                gorulen.add(href)
+                yeni += 1
+                metin = " ".join(a["text"].split())
+                sirket = a["alt"].replace(" logo", "").strip()
+                satir = (a["text"].strip().split("\n") or [""])[0]
+                if not sirket and " - " in satir:
+                    sirket = satir.split(" - ")[0].strip()
+                baslik = " ".join(a["head"].split())
+                if not baslik:
+                    baslik = satir.split(" - ", 1)[-1].strip() if " - " in satir else satir
+                    if sirket and baslik.endswith(sirket):
+                        baslik = baslik[: -len(sirket)].strip()
+                m = re.search(r"(\d{2})\.(\d{2})\.(\d{4})\s*(.*)$", metin)
+                son = f"{m.group(1)}.{m.group(2)}.{m.group(3)}" if m else ""
+                yer = (m.group(4) if m else "").strip(" +")
+                mod = YT_MOD.get(yer.lower())
+                sonuc.append({
+                    "t": baslik[:120] or "Staj ilanı", "c": sirket or "Youthall", "city": "-" if mod else (yer or "-"),
+                    "f": alan(baslik, sirket), "m": mod or "Ofis", "s": "Youthall", "u": href, "son": son,
+                })
+            if not yeni:
+                break
+            time.sleep(1.5)
+        b.close()
+    return sonuc
+
+
 def sayfa_tara(site):
     """Tarayıcı ile sayfayı açıp staj ifadesi geçen bağlantıları toplar."""
     from playwright.sync_api import sync_playwright
@@ -188,7 +239,7 @@ def main():
     eski = {x["u"]: x for x in json.loads(OUT.read_text("utf-8"))} if OUT.exists() else {}
     bugun = dt.date.today()
     toplanan = []
-    for ad, fn in ([(ad, lambda k=k, ad=ad: lever(k, ad)) for k, ad in LEVER] + [(ad, lambda k=k, ad=ad: greenhouse(k, ad)) for k, ad in GREENHOUSE] + [("Savunma Kariyer", savunma_kariyer)]) + [(s["c"], lambda s=s: sayfa_tara(s)) for s in SAYFALAR]:
+    for ad, fn in ([(ad, lambda k=k, ad=ad: lever(k, ad)) for k, ad in LEVER] + [(ad, lambda k=k, ad=ad: greenhouse(k, ad)) for k, ad in GREENHOUSE] + [("Savunma Kariyer", savunma_kariyer), ("Youthall", youthall)]) + [(s["c"], lambda s=s: sayfa_tara(s)) for s in SAYFALAR]:
         try:
             gelen = fn()
             print(f"{ad}: {len(gelen)} ilan")
